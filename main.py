@@ -25,7 +25,6 @@ def verificar_conexion(request: Request):
 async def recibir_mensajes(request: Request):
     body = await request.json()
     
-    # 🟢 NUEVO: Imprimir TODO lo que llega crudo desde Meta
     print("====== PAYLOAD RECIBIDO ======")
     print(body)
     print("==============================")
@@ -40,45 +39,42 @@ async def recibir_mensajes(request: Request):
                         comentario = change["value"]
                         comment_id = comentario["id"]
                         
-                        # Evitamos que el bot se responda a sí mismo
                         if comentario.get("from", {}).get("id") == comentario.get("media", {}).get("owner", {}).get("id"):
                             continue
 
-                        # Convertimos el texto a minúsculas para facilitar la búsqueda
                         texto = comentario.get("text", "").lower()
                         print(f"Nuevo comentario en IG: {texto}")
 
-                        # 🟢 Lista de palabras clave que activan el bot
                         palabras_clave = ["precio", "precios", "y el precio", "cuanto cuesta", "cual es el precio", "info", "información", "informacion", "cuanto", "costo", "detalles"]
 
-                        # Verificamos si el cliente usó alguna de esas palabras
                         if any(palabra in texto for palabra in palabras_clave):
                             url_base = "https://graph.facebook.com/v19.0"
 
-                            # Responder públicamente
                             url_publica = f"{url_base}/{comment_id}/replies?access_token={ACCESS_TOKEN}"
                             requests.post(url_publica, json={
                                 "message": "¡Hola! Te acabo de enviar toda la información por mensaje directo (DM). 🚀"
-                            })
+                            }, timeout=5)
 
-                            # Enviar DM
                             url_privada = f"{url_base}/me/messages?access_token={ACCESS_TOKEN}"
                             requests.post(url_privada, json={
                                 "recipient": {"comment_id": comment_id},
                                 "message": {"text": "¡Hola! Vimos tu comentario. Aquí tienes la información sobre nuestras aspiradoras inteligentes. ¿Qué modelo te interesa?"}
-                            })
-                        else:
-                            print("Comentario ignorado (no contiene palabras de venta).")
+                            }, timeout=5)
 
             # 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
             elif "messaging" in entry:
                 for event in entry["messaging"]:
+                    
+                    # 🛑 PROTECCIÓN 1: Evitar bucle infinito (Ignorar ecos del bot)
+                    if event.get("message", {}).get("is_echo"):
+                        print("Eco detectado. El bot ignora su propio mensaje.")
+                        continue
+                        
                     if "message" in event and "text" in event["message"]:
                         sender_id = event["sender"]["id"]
                         mensaje = event["message"]["text"].lower()
                         print(f"Mensaje directo recibido: {mensaje}")
                         
-                        # Lógica de respuestas automáticas para los DMs
                         if "dreame" in mensaje:
                             respuesta = "¡Excelente elección! Las aspiradoras robot Dreame cuentan con mapeo inteligente y base de autovaciado. ¿Buscas algún modelo en específico como la L10s Ultra?"
                         elif "mova" in mensaje:
@@ -89,10 +85,11 @@ async def recibir_mensajes(request: Request):
                             respuesta = "¡Hola! Soy el asistente de Como2hogar. 🤖 Tenemos los mejores equipos inteligentes para limpiar tu casa. Escribe 'Dreame', 'Mova' o 'Precio' para darte más detalles."
 
                         url = f"https://graph.facebook.com/v19.0/me/messages?access_token={ACCESS_TOKEN}"
+                        # 🛑 PROTECCIÓN 2: Timeout para que Render no se quede esperando a Meta y se congele
                         requests.post(url, json={
                             "recipient": {"id": sender_id},
                             "message": {"text": respuesta}
-                        })
+                        }, timeout=5)
 
     except Exception as e:
         print("Error al procesar el mensaje:", e)
