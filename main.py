@@ -25,6 +25,11 @@ def verificar_conexion(request: Request):
 async def recibir_mensajes(request: Request):
     body = await request.json()
     
+    # 🟢 NUEVO: Imprimir TODO lo que llega crudo desde Meta
+    print("====== PAYLOAD RECIBIDO ======")
+    print(body)
+    print("==============================")
+    
     try:
         for entry in body.get("entry", []):
             
@@ -35,6 +40,7 @@ async def recibir_mensajes(request: Request):
                         comentario = change["value"]
                         comment_id = comentario["id"]
                         
+                        # Evitamos que el bot se responda a sí mismo
                         if comentario.get("from", {}).get("id") == comentario.get("media", {}).get("owner", {}).get("id"):
                             continue
 
@@ -42,8 +48,8 @@ async def recibir_mensajes(request: Request):
                         texto = comentario.get("text", "").lower()
                         print(f"Nuevo comentario en IG: {texto}")
 
-                        # 🟢 NUEVO: Lista de palabras clave que activan el bot
-                        palabras_clave = ["precio", "precios", "y el precio", "Cuanto cuesta", "cual es el precio", "info", "información", "informacion", "cuanto", "costo", "detalles"]
+                        # 🟢 Lista de palabras clave que activan el bot
+                        palabras_clave = ["precio", "precios", "y el precio", "cuanto cuesta", "cual es el precio", "info", "información", "informacion", "cuanto", "costo", "detalles"]
 
                         # Verificamos si el cliente usó alguna de esas palabras
                         if any(palabra in texto for palabra in palabras_clave):
@@ -64,7 +70,7 @@ async def recibir_mensajes(request: Request):
                         else:
                             print("Comentario ignorado (no contiene palabras de venta).")
 
-# 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
+            # 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
             elif "messaging" in entry:
                 for event in entry["messaging"]:
                     if "message" in event and "text" in event["message"]:
