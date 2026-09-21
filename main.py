@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, Response
 app = FastAPI()
 
 VERIFY_TOKEN = "como2hogar_secreto_2026"
-ACCESS_TOKEN = "EAGWlZBLVo92sBSn5Dxzv5iQgdudTN1UmnRI9oZA4vJ4aRylrCZAuZA3ORZAXk8ru4L4LDtO3pEXWWVwOCmNGyvrhwOtzflMaY8qPEo6I5Ew6ZBZCXWEtVXbX7WBBIqVuHA3HCriy95gJIPB8Txvz2V7uvT4uRT2IgqvqlFHIIEgKCqX4gtpia1C0lLRZClhZBNR0Hg707fQZDZD"
+ACCESS_TOKEN = "IGAAPt9ZCmuVkZABZAGI1NzctbG9fZAk9OQnctMVpHNUlpT3B4NkltVXZAZAX0RnRmR1elRXT01HVm1wNnRic3JWc3p4eDlpT1pNc1pIcGpnSFdjbjV5ZAUM2VWlxOThkNjN5NF9jdUhETW1Ca0V6bGFJRkVUZAHNZAcHRsYnlJZATBoVi13TQZDZD"
 
 @app.get("/")
 def home():
@@ -64,18 +64,28 @@ async def recibir_mensajes(request: Request):
                         else:
                             print("Comentario ignorado (no contiene palabras de venta).")
 
-            # 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
+# 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
             elif "messaging" in entry:
                 for event in entry["messaging"]:
                     if "message" in event and "text" in event["message"]:
                         sender_id = event["sender"]["id"]
-                        mensaje = event["message"]["text"]
+                        mensaje = event["message"]["text"].lower()
                         print(f"Mensaje directo recibido: {mensaje}")
                         
+                        # Lógica de respuestas automáticas para los DMs
+                        if "dreame" in mensaje:
+                            respuesta = "¡Excelente elección! Las aspiradoras robot Dreame cuentan con mapeo inteligente y base de autovaciado. ¿Buscas algún modelo en específico como la L10s Ultra?"
+                        elif "mova" in mensaje:
+                            respuesta = "¡Las aspiradoras Mova son increíbles para el hogar! Tenemos disponibles modelos en formato robot y wet/dry. ¿Para qué tipo de piso la necesitas?"
+                        elif "precio" in mensaje or "costo" in mensaje:
+                            respuesta = "Nuestros precios varían según el modelo. Las opciones básicas inician en [Precio] y los modelos premium en [Precio]. ¡Cuéntame cuál te llama la atención!"
+                        else:
+                            respuesta = "¡Hola! Soy el asistente de Como2hogar. 🤖 Tenemos los mejores equipos inteligentes para limpiar tu casa. Escribe 'Dreame', 'Mova' o 'Precio' para darte más detalles."
+
                         url = f"https://graph.facebook.com/v19.0/me/messages?access_token={ACCESS_TOKEN}"
                         requests.post(url, json={
                             "recipient": {"id": sender_id},
-                            "message": {"text": "¡Hola de nuevo! Soy el asistente de Como2hogar. ¿En qué te puedo ayudar hoy?"}
+                            "message": {"text": respuesta}
                         })
 
     except Exception as e:
