@@ -26,25 +26,58 @@ async def recibir_mensajes(request: Request):
     body = await request.json()
     
     try:
-        # Extraemos el mensaje y quién lo envía
-        evento = body["entry"][0]["messaging"][0]
-        sender_id = evento["sender"]["id"]
-        
-        if "message" in evento and "text" in evento["message"]:
-            mensaje_cliente = evento["message"]["text"]
-            print(f"Mensaje recibido de {sender_id}: {mensaje_cliente}")
+        for entry in body.get("entry", []):
             
-            # Preparamos la respuesta
-            url = f"https://graph.facebook.com/v19.0/me/messages?access_token={ACCESS_TOKEN}"
-            headers = {"Content-Type": "application/json"}
-            respuesta = {
-                "recipient": {"id": sender_id},
-                "message": {"text": "¡Hola! Soy el asistente virtual de Como2hogar. He recibido tu mensaje."}
-            }
-            
-            # Enviamos la respuesta a Meta
-            requests.post(url, headers=headers, json=respuesta)
-            
+            # 1. DETECTAR SI ES UN COMENTARIO
+            if "changes" in entry:
+                for change in entry["changes"]:
+                    if change.get("field") == "comments":
+                        comentario = change["value"]
+                        comment_id = comentario["id"]
+                        
+                        if comentario.get("from", {}).get("id") == comentario.get("media", {}).get("owner", {}).get("id"):
+                            continue
+
+                        # Convertimos el texto a minúsculas para facilitar la búsqueda
+                        texto = comentario.get("text", "").lower()
+                        print(f"Nuevo comentario en IG: {texto}")
+
+                        # 🟢 NUEVO: Lista de palabras clave que activan el bot
+                        palabras_clave = ["precio", "precios", "y el precio", "Cuanto cuesta", "cual es el precio", "info", "información", "informacion", "cuanto", "costo", "detalles"]
+
+                        # Verificamos si el cliente usó alguna de esas palabras
+                        if any(palabra in texto for palabra in palabras_clave):
+                            url_base = "https://graph.facebook.com/v19.0"
+
+                            # Responder públicamente
+                            url_publica = f"{url_base}/{comment_id}/replies?access_token={ACCESS_TOKEN}"
+                            requests.post(url_publica, json={
+                                "message": "¡Hola! Te acabo de enviar toda la información por mensaje directo (DM). 🚀"
+                            })
+
+                            # Enviar DM
+                            url_privada = f"{url_base}/me/messages?access_token={ACCESS_TOKEN}"
+                            requests.post(url_privada, json={
+                                "recipient": {"comment_id": comment_id},
+                                "message": {"text": "¡Hola! Vimos tu comentario. Aquí tienes la información sobre nuestras aspiradoras inteligentes. ¿Qué modelo te interesa?"}
+                            })
+                        else:
+                            print("Comentario ignorado (no contiene palabras de venta).")
+
+            # 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
+            elif "messaging" in entry:
+                for event in entry["messaging"]:
+                    if "message" in event and "text" in event["message"]:
+                        sender_id = event["sender"]["id"]
+                        mensaje = event["message"]["text"]
+                        print(f"Mensaje directo recibido: {mensaje}")
+                        
+                        url = f"https://graph.facebook.com/v19.0/me/messages?access_token={ACCESS_TOKEN}"
+                        requests.post(url, json={
+                            "recipient": {"id": sender_id},
+                            "message": {"text": "¡Hola de nuevo! Soy el asistente de Como2hogar. ¿En qué te puedo ayudar hoy?"}
+                        })
+
     except Exception as e:
         print("Error al procesar el mensaje:", e)
 
