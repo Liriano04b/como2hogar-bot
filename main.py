@@ -1,8 +1,10 @@
+import requests
 from fastapi import FastAPI, Request, Response
 
 app = FastAPI()
 
 VERIFY_TOKEN = "como2hogar_secreto_2026"
+ACCESS_TOKEN = "EAGWlZBLVo92sBSn5Dxzv5iQgdudTN1UmnRI9oZA4vJ4aRylrCZAuZA3ORZAXk8ru4L4LDtO3pEXWWVwOCmNGyvrhwOtzflMaY8qPEo6I5Ew6ZBZCXWEtVXbX7WBBIqVuHA3HCriy95gJIPB8Txvz2V7uvT4uRT2IgqvqlFHIIEgKCqX4gtpia1C0lLRZClhZBNR0Hg707fQZDZD"
 
 @app.get("/")
 def home():
@@ -21,11 +23,29 @@ def verificar_conexion(request: Request):
 
 @app.post("/webhook")
 async def recibir_mensajes(request: Request):
-    # Meta nos enviará los mensajes de los clientes en formato JSON
     body = await request.json()
     
-    # Imprimimos el mensaje en la consola de Render para poder leerlo
-    print("Nuevo mensaje recibido de Meta:", body)
-    
-    # Siempre debemos responderle a Meta con un 200 OK para que sepa que lo recibimos
+    try:
+        # Extraemos el mensaje y quién lo envía
+        evento = body["entry"][0]["messaging"][0]
+        sender_id = evento["sender"]["id"]
+        
+        if "message" in evento and "text" in evento["message"]:
+            mensaje_cliente = evento["message"]["text"]
+            print(f"Mensaje recibido de {sender_id}: {mensaje_cliente}")
+            
+            # Preparamos la respuesta
+            url = f"https://graph.facebook.com/v19.0/me/messages?access_token={ACCESS_TOKEN}"
+            headers = {"Content-Type": "application/json"}
+            respuesta = {
+                "recipient": {"id": sender_id},
+                "message": {"text": "¡Hola! Soy el asistente virtual de Como2hogar. He recibido tu mensaje."}
+            }
+            
+            # Enviamos la respuesta a Meta
+            requests.post(url, headers=headers, json=respuesta)
+            
+    except Exception as e:
+        print("Error al procesar el mensaje:", e)
+
     return Response(content="EVENT_RECEIVED", status_code=200)
