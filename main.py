@@ -1,5 +1,5 @@
+from fastapi import FastAPI, Request, Response, BackgroundTasks
 import requests
-from fastapi import FastAPI, Request, Response
 
 app = FastAPI()
 
@@ -21,14 +21,7 @@ def verificar_conexion(request: Request):
     
     return Response(content="Acceso denegado", status_code=403)
 
-@app.post("/webhook")
-async def recibir_mensajes(request: Request):
-    body = await request.json()
-    
-    print("====== PAYLOAD RECIBIDO ======")
-    print(body)
-    print("==============================")
-    
+def procesar_mensajes_en_segundo_plano(body):
     try:
         for entry in body.get("entry", []):
             
@@ -64,10 +57,7 @@ async def recibir_mensajes(request: Request):
             # 2. DETECTAR SI ES UN MENSAJE DIRECTO (DM) NORMAL
             elif "messaging" in entry:
                 for event in entry["messaging"]:
-                    
-                    # 🛑 PROTECCIÓN 1: Evitar bucle infinito (Ignorar ecos del bot)
                     if event.get("message", {}).get("is_echo"):
-                        print("Eco detectado. El bot ignora su propio mensaje.")
                         continue
                         
                     if "message" in event and "text" in event["message"]:
@@ -85,7 +75,6 @@ async def recibir_mensajes(request: Request):
                             respuesta = "¡Hola! Soy el asistente de Como2hogar. 🤖 Tenemos los mejores equipos inteligentes para limpiar tu casa. Escribe 'Dreame', 'Mova' o 'Precio' para darte más detalles."
 
                         url = f"https://graph.facebook.com/v19.0/me/messages?access_token={ACCESS_TOKEN}"
-                        # 🛑 PROTECCIÓN 2: Timeout para que Render no se quede esperando a Meta y se congele
                         requests.post(url, json={
                             "recipient": {"id": sender_id},
                             "message": {"text": respuesta}
@@ -94,4 +83,16 @@ async def recibir_mensajes(request: Request):
     except Exception as e:
         print("Error al procesar el mensaje:", e)
 
+# ESTA ES LA FUNCIÓN QUE RECIBE EL GOLPE INICIAL DE META
+@app.post("/webhook")
+async def recibir_mensajes(request: Request, background_tasks: BackgroundTasks):
+    body = await request.json()
+    
+    print("====== PAYLOAD RECIBIDO ======")
+    print(body)
+    print("==============================")
+    
+    # 🟢 Delegar el trabajo al fondo y responder a Meta en 1 milisegundo
+    background_tasks.add_task(procesar_mensajes_en_segundo_plano, body)
+    
     return Response(content="EVENT_RECEIVED", status_code=200)
